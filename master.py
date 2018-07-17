@@ -134,7 +134,7 @@ print("Waiting for new instance to launch...")
 time.sleep(60)
 new_asg_data = client.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
 
-new_instance_id=""
+new_instance_id = ""
 
 
 if new_asg_data["AutoScalingGroups"][0]["Instances"][0]["InstanceId"] == old_instance_id:
@@ -143,3 +143,13 @@ else:
     new_instance_id = new_asg_data["AutoScalingGroups"][0]["Instances"][0]["InstanceId"]
 
 print("New instance Launced : " + new_instance_id)
+print("Waiting for instance status check to pass ok")
+temp = session.client('autoscaling', region_name='us-east-2')
+waiter = temp.get_waiter('system_status_ok')
+waiter1 = temp.get_waiter('instance_status_ok')
+waiter.wait(Filters=[{'Name': 'instance-status.status','Values': ['ok']}], InstanceIds=[new_instance_id])
+waiter.wait(Filters=[{'Name': 'system-status.status','Values': ['ok']}], InstanceIds=[new_instance_id])
+waiter1.wait(Filters=[{'Name': 'instance-status.status','Values': ['ok']}], InstanceIds=[new_instance_id])
+waiter1.wait(Filters=[{'Name': 'system-status.status','Values': ['ok']}], InstanceIds=[new_instance_id])
+
+print("Done !")
