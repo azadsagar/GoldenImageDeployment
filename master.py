@@ -134,6 +134,10 @@ print("Waiting for new instance to launch...")
 time.sleep(60)
 new_asg_data = client.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
 
+if new_asg_data["ResponseMetadata"]["HTTPStatusCode"] != 200:
+    print("Unable to get new instance details, response code is : " + new_asg_data["ResponseMetadata"]["HTTPStatusCode"])
+    exit(1)
+
 new_instance_id = ""
 
 
@@ -153,3 +157,11 @@ waiter1.wait(Filters=[{'Name': 'instance-status.status','Values': ['ok']}], Inst
 waiter1.wait(Filters=[{'Name': 'system-status.status','Values': ['ok']}], InstanceIds=[new_instance_id])
 
 print("Done !")
+
+print("Reconfiguring Minimum and Desired Instance count to 1")
+res = update_asg_config(sys.argv[2], new_lc, 1, 1)
+
+if res["ResponseMetadata"]["HTTPStatusCode"] == 200:
+    print("Autoscaling reconfigured !")
+else:
+    print("Unable to get updated details from Autoscaling, response code is " + res["ResponseMetadata"]["HTTPStatusCode"])
