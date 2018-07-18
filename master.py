@@ -1,14 +1,16 @@
 #!/usr/bin/python
+# Golden Image deployment with Autoscaling 
+# Written by Sagar Barai, July 2018
 
 import boto3
 import sys
 import time
-import json
 
 if len(sys.argv) != 3:
     print("Usage : " + sys.argv[0] + " [Instance-ID] \"AutoScalingGroupName\"")
     print("Where Instance-ID is AWS golden image instance and")
     print("AutoscalingGroup is where launch configuration should be updated")
+    print("Note : If your autoscaling group contains whitespaces, use quotes \"\"")
     exit(1)
 
 session = boto3.Session(profile_name='terraform')
@@ -19,6 +21,8 @@ client = session.client('autoscaling', region_name='us-east-2')
 def create_ami_backup(instance_id):
 
     try:
+
+        print("Identifying instance...")
 
         instance = ec2.Instance(instance_id)
         hostname = ""
@@ -97,7 +101,7 @@ def create_new_launch_config(asg_name, ami_id):
             print("Unable to create new launch configuration, return code is " + lc_new_config["ResponseMetadata"]["HTTPStatusCode"])
             exit(1)
         else:
-            print("New Launch Config created : " + lc_new_config)
+            print("New Launch Config created : " + lc_config_name)
 
         return lc_config_name, asgdata["AutoScalingGroups"][0]["Instances"][0]["InstanceId"]
 
@@ -106,7 +110,7 @@ def create_new_launch_config(asg_name, ami_id):
         exit(1)
 
 
-def update_asg_config(asg_name,lc_name,min_size,desired_size):
+def update_asg_config(asg_name, lc_name, min_size, desired_size):
 
     try:
 
@@ -127,12 +131,12 @@ def update_asg_config(asg_name,lc_name,min_size,desired_size):
 
 
 image = create_ami_backup(sys.argv[1])
-new_lc, old_instance_id = create_new_launch_config(sys.argv[2])
+new_lc, old_instance_id = create_new_launch_config(sys.argv[2], str(image.image_id))
 print("Updating Autoscaling group with new Launch config and Min and Desired Instance size to 2...")
 update_asg_config(sys.argv[2], new_lc, 2, 2)
 print("Waiting for new instance to launch...")
 time.sleep(60)
-new_asg_data = client.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+new_asg_data = client.describe_auto_scaling_groups(AutoScalingGroupNames=[sys.argv[2]])
 
 if new_asg_data["ResponseMetadata"]["HTTPStatusCode"] != 200:
     print("Unable to get new instance details, response code is : " + new_asg_data["ResponseMetadata"]["HTTPStatusCode"])
@@ -148,7 +152,7 @@ else:
 
 print("New instance Launced : " + new_instance_id)
 print("Waiting for instance status check to pass ok")
-temp = session.client('autoscaling', region_name='us-east-2')
+temp = session.client('ec2', region_name='us-east-2')
 waiter = temp.get_waiter('system_status_ok')
 waiter1 = temp.get_waiter('instance_status_ok')
 waiter.wait(Filters=[{'Name': 'instance-status.status','Values': ['ok']}], InstanceIds=[new_instance_id])
@@ -159,9 +163,6 @@ waiter1.wait(Filters=[{'Name': 'system-status.status','Values': ['ok']}], Instan
 print("Done !")
 
 print("Reconfiguring Minimum and Desired Instance count to 1")
-res = update_asg_config(sys.argv[2], new_lc, 1, 1)
+update_asg_config(sys.argv[2], new_lc, 1, 1)
 
-if res["ResponseMetadata"]["HTTPStatusCode"] == 200:
-    print("Autoscaling reconfigured !")
-else:
-    print("Unable to get updated details from Autoscaling, response code is " + res["ResponseMetadata"]["HTTPStatusCode"])
+print("Script Execution Completed !")
