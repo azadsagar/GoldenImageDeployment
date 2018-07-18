@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Golden Image deployment with Autoscaling 
+# Golden Image deployment with Autoscaling
 # Written by Sagar Barai, July 2018
 
 import boto3
